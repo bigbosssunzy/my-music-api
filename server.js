@@ -1,7 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const { exec } = require('child_process');
-const path = path = require('path');
+const path = require('path');
 const fs = require('fs');
 
 const app = express();
@@ -33,12 +33,12 @@ app.get('/', (req, res) => {
     res.send('🎵 Joker Music API is Online & Active!');
 });
 
-// 🟢 Health-check route
+// Health-check route
 app.get('/ping', (req, res) => {
     res.status(200).send('OK');
 });
 
-// 🎵 Music Downloader & Search Endpoint
+// Music Downloader & Search Endpoint
 app.get('/api/play', authorize, (req, res) => {
     let { query } = req.query;
 
@@ -46,7 +46,7 @@ app.get('/api/play', authorize, (req, res) => {
         return res.status(400).json({ success: false, message: 'Query parameter is required.' });
     }
 
-    // 🧹 SAFETY CLEANUP: Automatically strip command prefixes if the bot sends them by mistake
+    // Safety Cleanup: Strip accidental prefixes (.play, .song, play, song)
     const isUrl = query.startsWith('http://') || query.startsWith('https://');
     if (!isUrl) {
         query = query.replace(/^[\.\/\\!]?(play|song)\s*/i, '').trim();
@@ -62,7 +62,7 @@ app.get('/api/play', authorize, (req, res) => {
 
     const target = isUrl ? `"${query}"` : `"ytsearch1:${query.replace(/"/g, '')}"`;
 
-    // Execute yt-dlp with player client spoofing to prevent bot blocks
+    // Execute yt-dlp with player client spoofing
     const command = `yt-dlp --extractor-args "youtube:player_client=android,ios,mweb" ${target} -x --audio-format mp3 --audio-quality 0 --no-playlist -o "${outputPath}" --print "%(title)s"`;
 
     console.log(`[MUSIC API] Cleaned Search Target: ${target}`);
