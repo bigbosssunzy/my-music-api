@@ -1,7 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const { exec } = require('child_process');
-const path = require('path');
+const path = path = require('path');
 const fs = require('fs');
 
 const app = express();
@@ -29,31 +29,43 @@ const authorize = (req, res, next) => {
     next();
 };
 
-// 🟢 Health-check route (Keep-Alive for Render / Cron services)
+app.get('/', (req, res) => {
+    res.send('🎵 Joker Music API is Online & Active!');
+});
+
+// 🟢 Health-check route
 app.get('/ping', (req, res) => {
     res.status(200).send('OK');
 });
 
 // 🎵 Music Downloader & Search Endpoint
 app.get('/api/play', authorize, (req, res) => {
-    const { query } = req.query;
+    let { query } = req.query;
 
     if (!query) {
         return res.status(400).json({ success: false, message: 'Query parameter is required.' });
+    }
+
+    // 🧹 SAFETY CLEANUP: Automatically strip command prefixes if the bot sends them by mistake
+    const isUrl = query.startsWith('http://') || query.startsWith('https://');
+    if (!isUrl) {
+        query = query.replace(/^[\.\/\\!]?(play|song)\s*/i, '').trim();
+    }
+
+    if (!query) {
+        return res.status(400).json({ success: false, message: 'Search query cannot be empty.' });
     }
 
     const timestamp = Date.now();
     const outputFileName = `audio_${timestamp}.mp3`;
     const outputPath = path.join(downloadsDir, outputFileName);
 
-    // If query is direct URL, use it directly; otherwise construct YouTube search command
-    const isUrl = query.startsWith('http://') || query.startsWith('https://');
     const target = isUrl ? `"${query}"` : `"ytsearch1:${query.replace(/"/g, '')}"`;
 
-    // Construct yt-dlp shell command
-    const command = `yt-dlp ${target} -x --audio-format mp3 --audio-quality 0 --no-playlist -o "${outputPath}" --print "%(title)s"`;
+    // Execute yt-dlp with player client spoofing to prevent bot blocks
+    const command = `yt-dlp --extractor-args "youtube:player_client=android,ios,mweb" ${target} -x --audio-format mp3 --audio-quality 0 --no-playlist -o "${outputPath}" --print "%(title)s"`;
 
-    console.log(`[MUSIC API] Processing request: ${query}`);
+    console.log(`[MUSIC API] Cleaned Search Target: ${target}`);
 
     exec(command, { maxBuffer: 1024 * 1024 * 10 }, (error, stdout, stderr) => {
         if (error) {
@@ -61,7 +73,6 @@ app.get('/api/play', authorize, (req, res) => {
             return res.status(500).json({ success: false, error: 'Failed to download or process audio.' });
         }
 
-        // Clean up output to extract video title
         const outputLines = stdout.trim().split('\n');
         const trackTitle = outputLines[outputLines.length - 1] || 'Unknown Track';
 
@@ -77,7 +88,7 @@ app.get('/api/play', authorize, (req, res) => {
             downloadUrl: downloadUrl
         });
 
-        // Auto cleanup local file after 10 minutes to save disk space
+        // Auto cleanup local file after 10 minutes
         setTimeout(() => {
             if (fs.existsSync(outputPath)) {
                 fs.unlinkSync(outputPath);
